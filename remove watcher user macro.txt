@@ -1,0 +1,266 @@
+macro name:  removewatcher
+
+Description:  gives list of users from space and allows you to remove watchers if needed
+
+Category:  Administration
+
+Template:
+
+## Macro title: Remove Watchers
+## Body processing: N
+##
+## Developed by: Stephen Deutsch
+##
+## This macro lets you remove watchers in bulk from a page and all its children.
+
+## Copyright 2014 zanox AG
+## 
+## Licensed under the Apache License, Version 2.0 (the "License");
+## you may not use this file except in compliance with the License.
+## You may obtain a copy of the License at
+## 
+##     http://www.apache.org/licenses/LICENSE-2.0
+## 
+## Unless required by applicable law or agreed to in writing, software
+## distributed under the License is distributed on an "AS IS" BASIS,
+## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+## See the License for the specific language governing permissions and
+## limitations under the License.
+
+## @noparams
+#set ( $containerManagerClass = $content.class.forName('com.atlassian.spring.container.ContainerManager') )
+#set ( $getInstanceMethod = $containerManagerClass.getDeclaredMethod('getInstance',null) )
+#set ( $containerManager = $getInstanceMethod.invoke(null,null) )
+#set ( $containerContext = $containerManager.containerContext )
+#set ( $contentEntityManager = $containerContext.getComponent('contentEntityManager') )
+#set ( $notificationManager = $containerContext.getComponent('notificationManager') )
+
+#set ( $requestedPageId = "" )
+#set ( $useJavascript = "" )
+#set ( $requestedPageId = $generalUtil.urlDecode($req.getParameter('requestedPageId')) )
+#set ( $useJavascript = $generalUtil.urlDecode($req.getParameter('useJavascript')) )
+
+#set ( $requestCharacter = "?" )
+#if ( $content.getUrlPath().contains("?") )
+  #set ( $requestCharacter = "&" )
+#end
+
+#set ( $urlPath = $req.getContextPath() + $content.getUrlPath() )
+
+#if ( $requestedPageId == "" )
+  <form class="aui top-label">
+    <div class="field-group top-label">
+      <label for="requested-page">Change Watchers for all sub-pages of this page:</label> 
+      <input id="requested-page" class="autocomplete-page text" data-max="10" data-none-message="No results" data-template="{id}">
+    </div>
+  </form>
+  <br />
+  <input id="use-javascript" type="checkbox" value="true">Use Javascript to get watchers (in case of page timeout)<br />
+  <button class="aui-button" onclick="window.location = '$urlPath' + '${requestCharacter}requestedPageId=' + encodeURIComponent(document.getElementById('requested-page').value) + '&useJavascript=' + document.getElementById('use-javascript').checked">Choose Page</button>
+#else
+  #set ( $pageId = $requestedPageId )
+  #set ( $Integer = 0 )
+  #set ( $Long = $generalUtil.getSystemStartupTime() )
+  #set ( $pageId = $Long.parseLong($pageId) )
+  #set ( $page = $contentEntityManager.getById($pageId) )
+  #if ( $Integer.parseInt($generalUtil.getBuildNumber()) < 4300 )
+	#set ( $page = $pageManager.getById($pageId) )
+  #end
+
+  <button class="aui-button" onclick="checkAll()">Select All</button>
+  <button class="aui-button" onclick="checkNone()">Select None</button>
+  <button class="aui-button" onclick="removeUserWatch()">Remove User Watch</button>
+  <button class="aui-button" onclick="addUserWatch()">Re-add User Watch</button>
+  <button class="aui-button" onclick="window.location = '$urlPath'">Choose New Page</button>
+  <p> </p>
+  <div id="aui-message-bar"> </div>
+  <p> </p>
+  <form class="aui top-label">
+    <div class="field-group">
+      <input id="selected-user" class="autocomplete-user text" data-none-message="No users found" data-template="{username}">
+    </div>
+  </form>
+  <button class="aui-button" onclick="selectUser(document.getElementById('selected-user').value)">Select only this user</button>
+    
+  #macro(parseChildren $pageToParse)
+    #set ( $pageChildren = $pageToParse.getChildren() )
+    #if ( $pageChildren != "[]" )
+      <ul>
+      #foreach($childPage in $pageChildren)
+          #set ( $childPageId = $childPage.id )
+          <li><a href="$req.contextPath/pages/viewpage.action?pageId=$childPageId"> $childPage.getTitle() </a><br />
+          <div id="$childPageId" class="watchers-div"></div>
+          #if ( $useJavascript == "false" )
+            #if ( $Integer.parseInt($generalUtil.getBuildNumber()) < 4300 )
+	          #set ( $notifications = $notificationManager.getNotificationsByPage($childPage) )
+			#else
+			  #set ( $notifications = $notificationManager.getNotificationsByContent($childPage) )
+            #end
+			#foreach ( $notification in $notifications )
+              #if ( $Integer.parseInt($generalUtil.getBuildNumber()) < 4300 )
+	            #set ( $watcher = $notification.userName )
+			  #else
+			    #set ( $watcher = $notification.receiver.name )
+              #end
+              <a style="color:black;" href="$req.getContextPath()/display/~$watcher"> $watcher 
+              <input type="checkbox" class="user-checkbox" value="$childPageId" username="$watcher" checked>
+              </a><span id="${childPageId}-${watcher}" class="aui-lozenge">no change</span><br />
+            #end
+          #end
+          </li>
+        #parseChildren($childPage)
+      #end
+      </ul>
+    #end
+  #end
+  
+  <br />
+  <br />
+  <div>
+    <ul>
+       <li><a href="$req.contextPath/pages/viewpage.action?pageId=$requestedPageId"> $page.getTitle() </a><br />
+       <div id="$requestedPageId" class="watchers-div"></div>
+       #if ( $useJavascript == "false" )
+         #if ( $Integer.parseInt($generalUtil.getBuildNumber()) < 4300 )
+	       #set ( $notifications = $notificationManager.getNotificationsByPage($page) )
+		 #else
+		   #set ( $notifications = $notificationManager.getNotificationsByContent($page) )
+         #end
+		 #foreach ( $notification in $notifications )
+           #if ( $Integer.parseInt($generalUtil.getBuildNumber()) < 4300 )
+	         #set ( $watcher = $notification.userName )
+	       #else
+			 #set ( $watcher = $notification.receiver.name )
+           #end
+           <a style="color:black;" href="$req.getContextPath()/display/~$watcher"> $watcher 
+           <input type="checkbox" class="user-checkbox" value="$requestedPageId" username="$watcher" checked>
+           </a><span id="${requestedPageId}-${watcher}" class="aui-lozenge">no change</span><br />
+        #end
+      #end
+      </li>
+      #parseChildren($page)
+    </ul>
+  </div>
+  <br />
+  
+  <script>
+  
+  function removeUserWatch() {
+    jQuery("input[type='checkbox'].user-checkbox:checked").each( function() {
+      var thisCheckbox = this;
+      var responseObject = [];
+      responseObject.push(parseInt(jQuery(this).val()));
+      responseObject.push(jQuery(this).attr('username'));
+      jQuery.ajax({dataType: 'json',
+                  contentType: 'application/json',
+                  type: 'POST',
+                  url: contextPath + '/rpc/json-rpc/confluenceservice-v2/removePageWatchForUser',
+                  data: JSON.stringify(responseObject)
+      }).done(function( data ) {
+	    var username = jQuery(thisCheckbox).attr('username').replace(".", "\\.");
+		var pageId = jQuery(thisCheckbox).val();
+        if ( data === true || data === "true" ) {
+          jQuery('#' + pageId + '-' + username).removeClass( "aui-lozenge-success" ).removeClass( "aui-lozenge-error" ).addClass( "aui-lozenge-complete" ).html("removed watch");
+        } else if (  data === false || data === "false" ) {
+		  jQuery('#' + pageId + '-' + username).removeClass( "aui-lozenge-complete" ).removeClass( "aui-lozenge-success" ).addClass( "aui-lozenge-error" ).html("already removed");
+		} else {
+          jQuery('#' + pageId + '-' + username).removeClass( "aui-lozenge-complete" ).removeClass( "aui-lozenge-success" ).addClass( "aui-lozenge-error" ).html("error");
+		  jQuery(thisCheckbox).prop('checked', false);
+		  jQuery(thisCheckbox).prop('disabled', true);
+		  console.log(data);
+        }
+      });
+    });
+	AJS.messages.generic({
+      title: "Watches have been removed from selected pages.",
+	  fadeout: true,
+	  delay: 3000
+    });
+  }
+  
+  function addUserWatch() {
+    jQuery("input[type='checkbox'].user-checkbox:checked").each( function() {
+      var thisCheckbox = this;
+      var responseObject = [];
+      responseObject.push(parseInt(jQuery(this).val()));
+      responseObject.push(jQuery(this).attr('username'));
+      jQuery.ajax({dataType: 'json',
+                  contentType: 'application/json',
+                  type: 'POST',
+                  url: contextPath + '/rpc/json-rpc/confluenceservice-v2/watchPageForUser',
+                  data: JSON.stringify(responseObject)
+      }).done(function( data ) {
+	    var username = jQuery(thisCheckbox).attr('username').replace(".", "\\.");
+		var pageId = jQuery(thisCheckbox).val();
+        if ( data === true || data === "true" ) {
+          jQuery('#' + pageId + '-' + username).removeClass( "aui-lozenge-complete" ).removeClass( "aui-lozenge-error" ).addClass( "aui-lozenge-success" ).html("re-added watch");
+        } else if (  data === false || data === "false" ) {
+		  jQuery('#' + pageId + '-' + username).removeClass( "aui-lozenge-complete" ).removeClass( "aui-lozenge-success" ).addClass( "aui-lozenge-error" ).html("already watching");
+		} else {
+          jQuery('#' + pageId + '-' + username).removeClass( "aui-lozenge-complete" ).removeClass( "aui-lozenge-success" ).addClass( "aui-lozenge-error" ).html("error");
+		  jQuery(thisCheckbox).prop('checked', false);
+		  jQuery(thisCheckbox).prop('disabled', true);
+		  console.log(data);
+        }
+      });
+    });
+	AJS.messages.generic({
+      title: "Watches have been re-added to selected pages.",
+	  fadeout: true,
+	  delay: 3000
+    });
+  }
+  
+  function checkAll() {
+    jQuery("input[type='checkbox'].user-checkbox").each( function() { 
+	  if ( jQuery(this).prop('disabled') === false ) {
+	    jQuery(this).prop('checked', true); 
+	  }
+	});
+  }
+  
+  function checkNone() {
+    jQuery("input[type='checkbox'].user-checkbox").each( function() { 
+	  if ( jQuery(this).prop('disabled') === false ) {
+	    jQuery(this).prop('checked', false); 
+	  }
+	});
+  }
+  
+  function selectUser(username) {
+    checkNone();
+	jQuery("input[type='checkbox'].user-checkbox").each( function() { 
+	  if ( jQuery(this).attr('username') === username && jQuery(this).prop('disabled') === false ) {
+	    jQuery(this).prop('checked', true);
+	  }
+	});
+  }
+  
+  window.onbeforeunload = function(e) {
+    return 'Once you refresh or leave this page you will not be able to re-add watches that you have removed.';
+  };
+  
+  #if ( $useJavascript == "true" )
+    (function(){
+      jQuery("div.watchers-div").each( function() {
+        var pageId = jQuery(this).attr('id');
+        var that = this;
+        jQuery.ajax({dataType: 'json',
+                    contentType: 'application/json',
+                    type: 'POST',
+                    url: contextPath + '/rpc/json-rpc/confluenceservice-v2/getWatchersForPage',
+                    data: '[' + pageId + ']'
+        }).done(function( response ) {
+          jQuery.each(response, function( index, value ) {
+            if ((value !== null) && value.hasOwnProperty('name')) {
+              var watcherName = value['name'];
+              jQuery(that).append('<a style="color:black;" href="' + contextPath + '/display/~' + watcherName +'"> ' + watcherName + '<input type="checkbox" class="user-checkbox" value="' + pageId + '" username="' + watcherName + '" checked></a><span id="' + pageId + '-' + watcherName + '" class="aui-lozenge">no change</span><br />');
+            }
+          });
+        });
+      });
+    }());
+  #end
+  
+  </script>
+#end
