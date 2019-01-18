@@ -1,0 +1,14 @@
+## Macro title: pagebreak
+## Macro has a body: Y or N
+## Body processing: Selected body processing option
+## Output: Gives page break upon PDF export
+##
+## Developed by: Shannon Wright
+## Date created: 20170331
+## Installed by: Shannon Wright
+
+## This is an example macro
+## @param Name:title=Name|type=string|required=true|desc=Your name
+
+## @noparams
+<div style="page-break-before:always;"></div>
